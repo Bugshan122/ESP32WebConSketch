@@ -34,12 +34,12 @@ U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 // Firebase Cloud Function URL (replace with your deployed function URL)
 const char* API_BASE_URL = "https://us-central1-esp-web-2625a.cloudfunctions.net/api";
 
-// OpenWeatherMap API key
-const char* WEATHER_API_KEY = "09490acedad3c78360cbaca239c8f2b6";
+// OpenWeatherMap API key (configured via WiFiManager)
+char weatherApiKey[40] = "";
 
 // Config button (BOOT button on most ESP32 boards)
 #define CONFIG_PIN 0
-#define EEPROM_SIZE 64
+#define EEPROM_SIZE 128
 
 // Display dimensions
 const int SCREEN_WIDTH = 128;
@@ -51,6 +51,7 @@ const int SCREEN_HEIGHT = 64;
 
 WiFiManager wm;
 WiFiManagerParameter* custom_api_key;
+WiFiManagerParameter* custom_weather_key;
 char apiKey[45] = "";
 String userId = "";
 
@@ -130,15 +131,21 @@ void setup() {
 
   pinMode(CONFIG_PIN, INPUT_PULLUP);
 
-  // Initialize EEPROM and load API key
+  // Initialize EEPROM and load API keys
   EEPROM.begin(EEPROM_SIZE);
   EEPROM.get(0, apiKey);
+  EEPROM.get(64, weatherApiKey);
 
   // Validate API key format
   if (strncmp(apiKey, "esp_", 4) != 0) {
     memset(apiKey, 0, sizeof(apiKey));
   }
+  // Validate weather API key (should be 32 hex chars)
+  if (strlen(weatherApiKey) != 32) {
+    memset(weatherApiKey, 0, sizeof(weatherApiKey));
+  }
   Serial.println("Loaded API Key: " + String(apiKey));
+  Serial.println("Weather API Key loaded: " + String(strlen(weatherApiKey) > 0 ? "Yes" : "No"));
 
   // Initialize OLED
   u8g2.begin();
@@ -172,9 +179,11 @@ void setup() {
 // WiFi MANAGER SETUP
 // ===========================================
 void setupWiFiManager() {
-  // Create custom parameter for API key
+  // Create custom parameters
   custom_api_key = new WiFiManagerParameter("apikey", "ESP API Key", apiKey, 44);
+  custom_weather_key = new WiFiManagerParameter("weatherkey", "OpenWeatherMap API Key", weatherApiKey, 39);
   wm.addParameter(custom_api_key);
+  wm.addParameter(custom_weather_key);
 
   // Set callbacks
   wm.setSaveConfigCallback(saveConfigCallback);
@@ -199,13 +208,21 @@ void setupWiFiManager() {
 void saveConfigCallback() {
   Serial.println("Config saved!");
 
-  // Save API key to EEPROM
+  // Save ESP API key to EEPROM (offset 0)
   if (strlen(custom_api_key->getValue()) > 0) {
     strcpy(apiKey, custom_api_key->getValue());
     EEPROM.put(0, apiKey);
-    EEPROM.commit();
     Serial.println("API Key saved: " + String(apiKey));
   }
+
+  // Save Weather API key to EEPROM (offset 64)
+  if (strlen(custom_weather_key->getValue()) > 0) {
+    strcpy(weatherApiKey, custom_weather_key->getValue());
+    EEPROM.put(64, weatherApiKey);
+    Serial.println("Weather API Key saved");
+  }
+
+  EEPROM.commit();
 }
 
 // ===========================================
@@ -267,8 +284,9 @@ void checkConfigButton() {
         Serial.println("\nOpening config portal...");
         showMessage("Config Mode\n\nConnect to:\nESP32-Setup");
 
-        // Update parameter with current API key
+        // Update parameters with current values
         custom_api_key->setValue(apiKey, 44);
+        custom_weather_key->setValue(weatherApiKey, 39);
 
         wm.startConfigPortal("ESP32-Setup");
 
@@ -705,6 +723,12 @@ void fetchWeatherSettings() {
 }
 
 void fetchWeather() {
+  // Check if weather API key is configured
+  if (strlen(weatherApiKey) == 0) {
+    Serial.println("Weather API key not configured");
+    return;
+  }
+
   HTTPClient http;
   http.setTimeout(5000);
 
@@ -712,7 +736,7 @@ void fetchWeather() {
   city.replace(" ", "%20");
 
   String url = "http://api.openweathermap.org/data/2.5/weather?q=" + city +
-               "&appid=" + WEATHER_API_KEY + "&units=metric";
+               "&appid=" + String(weatherApiKey) + "&units=metric";
 
   http.begin(url);
   int httpCode = http.GET();
