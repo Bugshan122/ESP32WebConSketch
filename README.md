@@ -126,24 +126,16 @@ arduino-cli upload --fqbn esp32:esp32:esp32:UploadSpeed=115200 -p /dev/cu.usbser
 4. **Enter Credentials:**
    - Select your WiFi network
    - Enter WiFi password
-   - Enter your ESP API Key from [espcon.vercel.app](https://espcon.vercel.app)
-   - Enter your OpenWeatherMap API Key (for weather feature)
+   - Enter your API Key from [espcon.vercel.app](https://espcon.vercel.app)
 
 5. **Save and Reboot** - ESP32 will connect to your WiFi and start syncing
 
-### Getting Your API Keys
+### Getting Your API Key
 
-**ESP API Key:**
 1. Visit [espcon.vercel.app](https://espcon.vercel.app)
 2. Create an account or sign in
 3. Go to Settings/Device section
 4. Copy your unique API key
-
-**OpenWeatherMap API Key (optional, for weather feature):**
-1. Visit [openweathermap.org](https://openweathermap.org/api)
-2. Create a free account
-3. Go to API Keys section
-4. Copy your API key
 
 ## Reset WiFi Settings
 
