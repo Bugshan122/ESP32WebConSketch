@@ -43,6 +43,47 @@ const char* API_BASE_URL = "https://us-central1-esp-web-2625a.cloudfunctions.net
 const int SCREEN_WIDTH = 128;
 const int SCREEN_HEIGHT = 64;
 
+// Website URL
+const char* WEBSITE_URL = "espcon.vercel.app";
+
+// ===========================================
+// ESPCON LOGO BITMAP (32x32 pixels) - Chip/Circuit design
+// ===========================================
+static const unsigned char ESPCON_LOGO[] PROGMEM = {
+  0x00, 0x0F, 0xF0, 0x00,  // Row 0
+  0x00, 0x0F, 0xF0, 0x00,  // Row 1
+  0x00, 0x0F, 0xF0, 0x00,  // Row 2
+  0x00, 0x0F, 0xF0, 0x00,  // Row 3
+  0x0F, 0xFF, 0xFF, 0xF0,  // Row 4
+  0x0F, 0xFF, 0xFF, 0xF0,  // Row 5
+  0x0F, 0x00, 0x00, 0xF0,  // Row 6
+  0x0F, 0x00, 0x00, 0xF0,  // Row 7
+  0xFF, 0x0F, 0xF0, 0xFF,  // Row 8  - pins left/right
+  0xFF, 0x0F, 0xF0, 0xFF,  // Row 9
+  0x0F, 0x0F, 0xF0, 0xF0,  // Row 10
+  0x0F, 0x0F, 0xF0, 0xF0,  // Row 11
+  0xFF, 0x0F, 0xF0, 0xFF,  // Row 12 - pins
+  0xFF, 0x0F, 0xF0, 0xFF,  // Row 13
+  0x0F, 0x0F, 0xF0, 0xF0,  // Row 14
+  0x0F, 0x0F, 0xF0, 0xF0,  // Row 15
+  0xFF, 0x0F, 0xF0, 0xFF,  // Row 16 - pins
+  0xFF, 0x0F, 0xF0, 0xFF,  // Row 17
+  0x0F, 0x0F, 0xF0, 0xF0,  // Row 18
+  0x0F, 0x0F, 0xF0, 0xF0,  // Row 19
+  0xFF, 0x0F, 0xF0, 0xFF,  // Row 20 - pins
+  0xFF, 0x0F, 0xF0, 0xFF,  // Row 21
+  0x0F, 0x00, 0x00, 0xF0,  // Row 22
+  0x0F, 0x00, 0x00, 0xF0,  // Row 23
+  0x0F, 0xFF, 0xFF, 0xF0,  // Row 24
+  0x0F, 0xFF, 0xFF, 0xF0,  // Row 25
+  0x00, 0x0F, 0xF0, 0x00,  // Row 26
+  0x00, 0x0F, 0xF0, 0x00,  // Row 27
+  0x00, 0x0F, 0xF0, 0x00,  // Row 28
+  0x00, 0x0F, 0xF0, 0x00,  // Row 29
+  0x00, 0x0F, 0xF0, 0x00,  // Row 30
+  0x00, 0x0F, 0xF0, 0x00   // Row 31
+};
+
 // ===========================================
 // GLOBAL VARIABLES
 // ===========================================
@@ -53,10 +94,11 @@ char apiKey[45] = "";
 String userId = "";
 
 // Mode management
-String currentMode = "oled";
+String currentMode = "";  // Empty means no sketch chosen
 String lastMode = "";
 unsigned long lastModeCheck = 0;
 const unsigned long MODE_CHECK_INTERVAL = 3000;
+bool dataLoaded = false;  // Track if mode data has been loaded
 
 // OLED Text Display
 String displayMessage = "ESP32\nController";
@@ -76,12 +118,14 @@ const int GRID_W = 96;
 const int GRID_H = 48;
 bool canvas[96][48];
 unsigned long lastCanvasFetch = 0;
-const unsigned long CANVAS_FETCH_INTERVAL = 2000;
+const unsigned long CANVAS_FETCH_INTERVAL = 1000;  // Reduced from 2000ms to 1000ms for faster updates
+bool pixelPaintHasData = false;
 
 // Image to Pixel
 bool imagePixelCanvas[96][48];
 unsigned long lastImagePixelFetch = 0;
-const unsigned long IMAGE_PIXEL_FETCH_INTERVAL = 2000;
+const unsigned long IMAGE_PIXEL_FETCH_INTERVAL = 1000;  // Reduced from 2000ms to 1000ms for faster updates
+bool imagePixelHasData = false;
 
 // Weather Monitor
 struct City {
@@ -93,31 +137,66 @@ struct City {
 };
 
 City cities[] = {
+  // Asia
   {"Calicut", "Kozhikode,IN", "IST-5:30", 0, 0},
   {"Yelahanka", "Yelahanka,IN", "IST-5:30", 0, 0},
   {"Patna", "Patna,IN", "IST-5:30", 0, 0},
-  {"Berlin", "Berlin,DE", "CET-1CEST,M3.5.0/2,M10.5.0/3", 0, 0},
-  {"Stuttgart", "Stuttgart,DE", "CET-1CEST,M3.5.0/2,M10.5.0/3", 0, 0},
+  {"Mumbai", "Mumbai,IN", "IST-5:30", 0, 0},
   {"Dubai", "Dubai,AE", "GST-4", 0, 0},
   {"Abu Dhabi", "Abu Dhabi,AE", "GST-4", 0, 0},
+  {"Riyadh", "Riyadh,SA", "AST-3", 0, 0},
+  {"Singapore", "Singapore,SG", "SGT-8", 0, 0},
+  {"Tokyo", "Tokyo,JP", "JST-9", 0, 0},
+  {"Beijing", "Beijing,CN", "CST-8", 0, 0},
+  {"Seoul", "Seoul,KR", "KST-9", 0, 0},
+  {"Bangkok", "Bangkok,TH", "ICT-7", 0, 0},
+  {"Hong Kong", "Hong Kong,HK", "HKT-8", 0, 0},
+  {"Istanbul", "Istanbul,TR", "TRT-3", 0, 0},
+
+  // Europe
+  {"Berlin", "Berlin,DE", "CET-1CEST,M3.5.0/2,M10.5.0/3", 0, 0},
+  {"Stuttgart", "Stuttgart,DE", "CET-1CEST,M3.5.0/2,M10.5.0/3", 0, 0},
+  {"London", "London,GB", "GMT0BST,M3.5.0/1,M10.5.0", 0, 0},
+  {"Paris", "Paris,FR", "CET-1CEST,M3.5.0,M10.5.0/3", 0, 0},
+  {"Madrid", "Madrid,ES", "CET-1CEST,M3.5.0,M10.5.0/3", 0, 0},
+  {"Rome", "Rome,IT", "CET-1CEST,M3.5.0,M10.5.0/3", 0, 0},
+  {"Amsterdam", "Amsterdam,NL", "CET-1CEST,M3.5.0,M10.5.0/3", 0, 0},
+  {"Moscow", "Moscow,RU", "MSK-3", 0, 0},
+
+  // North America
   {"New York", "New York,US", "EST5EDT,M3.2.0,M11.1.0", 0, 0},
   {"San Francisco", "San Francisco,US", "PST8PDT,M3.2.0,M11.1.0", 0, 0},
   {"Chicago", "Chicago,US", "CST6CDT,M3.2.0,M11.1.0", 0, 0},
-  {"London", "London,GB", "GMT0BST,M3.5.0/1,M10.5.0", 0, 0},
-  {"Paris", "Paris,FR", "CET-1CEST,M3.5.0,M10.5.0/3", 0, 0},
-  {"Tokyo", "Tokyo,JP", "JST-9", 0, 0},
-  {"Sydney", "Sydney,AU", "AEST-10AEDT,M10.1.0,M4.1.0/3", 0, 0},
+  {"Los Angeles", "Los Angeles,US", "PST8PDT,M3.2.0,M11.1.0", 0, 0},
   {"Toronto", "Toronto,CA", "EST5EDT,M3.2.0,M11.1.0", 0, 0},
-  {"Singapore", "Singapore,SG", "SGT-8", 0, 0},
-  {"Riyadh", "Riyadh,SA", "AST-3", 0, 0}
+  {"Vancouver", "Vancouver,CA", "PST8PDT,M3.2.0,M11.1.0", 0, 0},
+  {"Mexico City", "Mexico City,MX", "CST6CDT,M4.1.0,M10.5.0", 0, 0},
+
+  // South America
+  {"Sao Paulo", "Sao Paulo,BR", "BRT3BRST,M10.3.0/0,M2.3.0/0", 0, 0},
+  {"Buenos Aires", "Buenos Aires,AR", "ART3", 0, 0},
+  {"Lima", "Lima,PE", "PET5", 0, 0},
+  {"Bogota", "Bogota,CO", "COT5", 0, 0},
+
+  // Africa
+  {"Cairo", "Cairo,EG", "EET-2", 0, 0},
+  {"Lagos", "Lagos,NG", "WAT-1", 0, 0},
+  {"Johannesburg", "Johannesburg,ZA", "SAST-2", 0, 0},
+  {"Nairobi", "Nairobi,KE", "EAT-3", 0, 0},
+
+  // Oceania
+  {"Sydney", "Sydney,AU", "AEST-10AEDT,M10.1.0,M4.1.0/3", 0, 0},
+  {"Melbourne", "Melbourne,AU", "AEST-10AEDT,M10.1.0,M4.1.0/3", 0, 0},
+  {"Auckland", "Auckland,NZ", "NZST-12NZDT,M9.5.0,M4.1.0/3", 0, 0}
 };
-const int NUM_CITIES = 17;
-int currentCity = 0;
+const int NUM_CITIES = 40;
+int currentCity = -1;  // -1 means no city chosen
 int lastCity = -1;
 unsigned long lastWeatherSettingsFetch = 0;
 unsigned long lastWeatherFetch = 0;
 const unsigned long WEATHER_SETTINGS_INTERVAL = 3000;
 const unsigned long WEATHER_FETCH_INTERVAL = 60000;
+bool weatherDataLoaded = false;
 
 // ===========================================
 // SETUP
@@ -158,11 +237,13 @@ void setup() {
     if (fetchUserData()) {
       initCurrentMode();
     } else {
-      showMessage("Sync failed\nCheck API key");
-      delay(2000);
+      showMessage("Sync failed\nCheck API key\nat\nespcon.vercel.app");
+      delay(3000);
     }
   } else {
-    showMessage("No API key\nHold BOOT btn\nto configure");
+    // WiFi connected but no API key
+    showNoApiKeyConnected();
+    delay(3000);
   }
 }
 
@@ -178,7 +259,13 @@ void setupWiFiManager() {
   wm.setSaveConfigCallback(saveConfigCallback);
   wm.setConfigPortalTimeout(180);  // 3 minute timeout
 
-  showMessage("Connecting\nWiFi...");
+  // Check if WiFi credentials are saved
+  if (WiFi.SSID() == "") {
+    // No WiFi configured - show setup instructions
+    showFirstTimeSetup();
+  } else {
+    showMessage("Connecting\nWiFi...");
+  }
 
   // Try to connect, or start config portal
   if (!wm.autoConnect("ESP32-Setup")) {
@@ -217,14 +304,14 @@ void loop() {
 
   // Skip if no API key
   if (strlen(apiKey) == 0) {
-    showMessage("No API key\nHold BOOT btn\nto configure");
-    delay(1000);
+    showNoApiKey();
+    delay(2000);
     return;
   }
 
   // Reconnect WiFi if disconnected
   if (WiFi.status() != WL_CONNECTED) {
-    showMessage("WiFi lost\nReconnecting...");
+    showNoWiFi();
     WiFi.reconnect();
     delay(5000);
     return;
@@ -244,7 +331,10 @@ void loop() {
   }
 
   // Run current mode
-  if (currentMode == "oled") {
+  if (currentMode == "" || currentMode == "null" || currentMode == "none") {
+    showWelcomeScreen();
+    delay(100);
+  } else if (currentMode == "oled") {
     loopOLED();
   } else if (currentMode == "pixel-paint") {
     loopPixelPaint();
@@ -252,6 +342,10 @@ void loop() {
     loopImageToPixel();
   } else if (currentMode == "weather") {
     loopWeather();
+  } else {
+    // Unknown mode - show welcome
+    showWelcomeScreen();
+    delay(100);
   }
 }
 
@@ -320,20 +414,31 @@ bool fetchUserData() {
 // MODE INITIALIZATION
 // ===========================================
 void initCurrentMode() {
-  if (currentMode == "oled") {
+  // Reset data flags
+  dataLoaded = false;
+
+  if (currentMode == "" || currentMode == "null" || currentMode == "none") {
+    // No mode selected - welcome screen will be shown
+    return;
+  } else if (currentMode == "oled") {
     showMessage("OLED Mode");
     fetchOledSettings();
   } else if (currentMode == "pixel-paint") {
     showMessage("Pixel Paint");
+    pixelPaintHasData = false;
     fetchCanvas();
   } else if (currentMode == "image-to-pixel") {
     showMessage("Image Mode");
+    imagePixelHasData = false;
     fetchImagePixel();
   } else if (currentMode == "weather") {
     showMessage("Weather Mode");
+    weatherDataLoaded = false;
     fetchWeatherSettings();
-    applyTimezone();
-    fetchWeather();
+    if (currentCity >= 0) {
+      applyTimezone();
+      fetchWeather();
+    }
   }
   delay(500);
 }
@@ -362,7 +467,7 @@ void loopOLED() {
 
   drawMessage();
   u8g2.sendBuffer();
-  delay(30);
+  delay(10);  // Reduced from 30ms to 10ms for smoother animations
 }
 
 void fetchOledSettings() {
@@ -538,6 +643,9 @@ void loopPixelPaint() {
     lastCanvasFetch = now;
   }
 
+  // Always draw the canvas, even if empty (no "no canvas data" message)
+  drawCanvasToOLED(canvas);
+
   delay(50);
 }
 
@@ -557,8 +665,9 @@ void fetchCanvas() {
 
     if (!error) {
       String canvasData = doc["canvas"].as<String>();
+      pixelPaintHasData = (canvasData.length() > 0);
       parseCanvasData(canvasData, canvas);
-      drawCanvasToOLED(canvas);
+      // Canvas will be drawn in loopPixelPaint(), whether empty or not
     }
   }
 
@@ -625,6 +734,13 @@ void loopImageToPixel() {
     lastImagePixelFetch = now;
   }
 
+  // Always draw the canvas, even if empty (consistent with pixel paint)
+  if (!imagePixelHasData) {
+    drawDefaultImageToPixel();
+  } else {
+    drawCanvasToOLED(imagePixelCanvas);
+  }
+
   delay(50);
 }
 
@@ -644,8 +760,13 @@ void fetchImagePixel() {
 
     if (!error) {
       String canvasData = doc["canvas"].as<String>();
+      imagePixelHasData = (canvasData.length() > 0);
       parseCanvasData(canvasData, imagePixelCanvas);
-      drawCanvasToOLED(imagePixelCanvas);
+      if (imagePixelHasData) {
+        drawCanvasToOLED(imagePixelCanvas);
+      } else {
+        drawDefaultImageToPixel();
+      }
     }
   }
 
@@ -663,17 +784,25 @@ void loopWeather() {
     lastWeatherSettingsFetch = now;
   }
 
+  // Check if no city is selected
+  if (currentCity < 0) {
+    drawNoLocationChosen();
+    delay(100);  // Reduced delay
+    return;
+  }
+
   if (now - lastWeatherFetch > WEATHER_FETCH_INTERVAL || currentCity != lastCity) {
     if (currentCity != lastCity) {
       applyTimezone();
       lastCity = currentCity;
     }
     fetchWeather();
+    weatherDataLoaded = true;
     lastWeatherFetch = now;
   }
 
   drawWeatherOLED();
-  delay(1000);
+  delay(100);  // Reduced from 1000ms to 100ms for smooth second updates
 }
 
 void fetchWeatherSettings() {
@@ -691,10 +820,18 @@ void fetchWeatherSettings() {
     DeserializationError error = deserializeJson(doc, payload);
 
     if (!error) {
-      int newCity = doc["selectedCity"].as<int>();
-      if (newCity >= 0 && newCity < NUM_CITIES && newCity != currentCity) {
-        currentCity = newCity;
-        Serial.println("City changed to: " + String(cities[currentCity].name));
+      // Check if selectedCity exists and is valid
+      if (doc.containsKey("selectedCity") && !doc["selectedCity"].isNull()) {
+        int newCity = doc["selectedCity"].as<int>();
+        if (newCity >= 0 && newCity < NUM_CITIES) {
+          if (newCity != currentCity) {
+            currentCity = newCity;
+            weatherDataLoaded = false;
+            Serial.println("City changed to: " + String(cities[currentCity].name));
+          }
+        }
+      } else {
+        currentCity = -1;  // No city selected
       }
     }
   }
@@ -795,6 +932,228 @@ void showMessage(String msg) {
       lineStart = i + 1;
     }
   }
+
+  u8g2.sendBuffer();
+}
+
+// ===========================================
+// WELCOME & STATUS SCREENS
+// ===========================================
+
+// Draw the ESPCON logo bitmap
+void drawLogo(int x, int y) {
+  u8g2.drawXBMP(x, y, 32, 32, ESPCON_LOGO);
+}
+
+// Welcome screen when no sketch is chosen
+void showWelcomeScreen() {
+  static int animFrame = 0;
+
+  u8g2.clearBuffer();
+
+  // Draw logo centered at top
+  drawLogo(48, 2);
+
+  // Draw "ESPCON" text
+  u8g2.setFont(u8g2_font_7x14B_tr);
+  const char* title = "ESPCON";
+  int titleWidth = strlen(title) * 7;
+  u8g2.drawStr((SCREEN_WIDTH - titleWidth) / 2, 48, title);
+
+  // Draw website URL with subtle animation
+  u8g2.setFont(u8g2_font_5x7_tr);
+  const char* url = "espcon.vercel.app";
+  int urlWidth = strlen(url) * 5;
+  u8g2.drawStr((SCREEN_WIDTH - urlWidth) / 2, 60, url);
+
+  // Animated border dots
+  int dotPos = animFrame % (2 * (SCREEN_WIDTH + SCREEN_HEIGHT));
+  for (int i = 0; i < 8; i++) {
+    int pos = (dotPos + i * 10) % (2 * (SCREEN_WIDTH + SCREEN_HEIGHT));
+    int px, py;
+    if (pos < SCREEN_WIDTH) {
+      px = pos; py = 0;
+    } else if (pos < SCREEN_WIDTH + SCREEN_HEIGHT) {
+      px = SCREEN_WIDTH - 1; py = pos - SCREEN_WIDTH;
+    } else if (pos < 2 * SCREEN_WIDTH + SCREEN_HEIGHT) {
+      px = SCREEN_WIDTH - 1 - (pos - SCREEN_WIDTH - SCREEN_HEIGHT); py = SCREEN_HEIGHT - 1;
+    } else {
+      px = 0; py = SCREEN_HEIGHT - 1 - (pos - 2 * SCREEN_WIDTH - SCREEN_HEIGHT);
+    }
+    u8g2.drawPixel(px, py);
+  }
+
+  animFrame += 2;
+  u8g2.sendBuffer();
+}
+
+// No WiFi connected screen
+void showNoWiFi() {
+  u8g2.clearBuffer();
+
+  // Draw logo
+  drawLogo(48, 0);
+
+  // Message
+  u8g2.setFont(u8g2_font_6x10_tr);
+  const char* line1 = "No WiFi";
+  const char* line2 = "Connected";
+  const char* line3 = "Reconnecting...";
+
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line1) * 6) / 2, 42, line1);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line2) * 6) / 2, 53, line2);
+  u8g2.setFont(u8g2_font_5x7_tr);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line3) * 5) / 2, 63, line3);
+
+  u8g2.sendBuffer();
+}
+
+// No API key configured screen
+void showNoApiKey() {
+  u8g2.clearBuffer();
+
+  // Draw logo
+  drawLogo(48, 0);
+
+  // Message
+  u8g2.setFont(u8g2_font_5x8_tr);
+  const char* line1 = "No API Key";
+  const char* line2 = "Hold BOOT 3s";
+  const char* line3 = "to configure";
+  const char* line4 = "espcon.vercel.app";
+
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line1) * 5) / 2, 40, line1);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line2) * 5) / 2, 50, line2);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line3) * 5) / 2, 58, line3);
+  u8g2.setFont(u8g2_font_5x7_tr);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line4) * 5) / 2, 64, line4);
+
+  u8g2.sendBuffer();
+}
+
+// First time setup screen (no WiFi or API key)
+void showFirstTimeSetup() {
+  u8g2.clearBuffer();
+
+  // Draw logo
+  drawLogo(48, 0);
+
+  // Message
+  u8g2.setFont(u8g2_font_6x10_tr);
+  const char* line1 = "First Setup";
+  const char* line2 = "Connect to:";
+
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line1) * 6) / 2, 40, line1);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line2) * 6) / 2, 50, line2);
+
+  u8g2.setFont(u8g2_font_7x14B_tr);
+  const char* ssid = "ESP32-Setup";
+  u8g2.drawStr((SCREEN_WIDTH - strlen(ssid) * 7) / 2, 63, ssid);
+
+  u8g2.sendBuffer();
+}
+
+// WiFi connected but no API key configured
+void showNoApiKeyConnected() {
+  u8g2.clearBuffer();
+
+  // Draw logo
+  drawLogo(48, 0);
+
+  // Message
+  u8g2.setFont(u8g2_font_5x8_tr);
+  const char* line1 = "WiFi Connected!";
+  const char* line2 = "Get API key at:";
+  const char* line3 = "espcon.vercel.app";
+  const char* line4 = "Hold BOOT 3s";
+  const char* line5 = "to add key";
+
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line1) * 5) / 2, 36, line1);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line2) * 5) / 2, 45, line2);
+
+  u8g2.setFont(u8g2_font_6x10_tr);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line3) * 6) / 2, 54, line3);
+
+  u8g2.setFont(u8g2_font_5x7_tr);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line4) * 5) / 2, 62, line4);
+
+  u8g2.sendBuffer();
+}
+
+// Default display for Pixel Paint (draws pixel art style logo)
+void drawDefaultPixelPaint() {
+  u8g2.clearBuffer();
+
+  // Draw a pixel art style "brush/paint" icon in center
+  // Simple paint brush icon made of pixels
+  int startX = 48;
+  int startY = 8;
+
+  // Draw a simple paintbrush pixel art
+  // Brush tip
+  u8g2.drawBox(startX + 12, startY, 8, 4);
+  u8g2.drawBox(startX + 8, startY + 4, 16, 4);
+  u8g2.drawBox(startX + 4, startY + 8, 24, 8);
+  // Handle
+  u8g2.drawBox(startX + 10, startY + 16, 12, 20);
+  u8g2.drawFrame(startX + 8, startY + 16, 16, 20);
+
+  // Text
+  u8g2.setFont(u8g2_font_6x10_tr);
+  const char* line1 = "Pixel Paint";
+  const char* line2 = "No canvas data";
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line1) * 6) / 2, 52, line1);
+  u8g2.setFont(u8g2_font_5x7_tr);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line2) * 5) / 2, 62, line2);
+
+  u8g2.sendBuffer();
+}
+
+// Default display for Image to Pixel (draws logo)
+void drawDefaultImageToPixel() {
+  u8g2.clearBuffer();
+
+  // Draw the ESPCON logo
+  drawLogo(48, 2);
+
+  // Text
+  u8g2.setFont(u8g2_font_6x10_tr);
+  const char* line1 = "Image to Pixel";
+  const char* line2 = "No image data";
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line1) * 6) / 2, 48, line1);
+  u8g2.setFont(u8g2_font_5x7_tr);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line2) * 5) / 2, 60, line2);
+
+  u8g2.sendBuffer();
+}
+
+// No location chosen for weather
+void drawNoLocationChosen() {
+  u8g2.clearBuffer();
+
+  // Draw a simple location/pin icon
+  int cx = 64;
+  int cy = 16;
+
+  // Location pin shape
+  u8g2.drawCircle(cx, cy, 8);
+  u8g2.drawDisc(cx, cy, 4);
+  u8g2.drawTriangle(cx - 8, cy + 4, cx + 8, cy + 4, cx, cy + 20);
+
+  // Clear inner part of triangle to make pin shape
+  u8g2.setDrawColor(0);
+  u8g2.drawBox(cx - 3, cy + 8, 6, 8);
+  u8g2.setDrawColor(1);
+
+  // Text
+  u8g2.setFont(u8g2_font_6x10_tr);
+  const char* line1 = "Weather Monitor";
+  const char* line2 = "No Location";
+  const char* line3 = "Chosen";
+
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line1) * 6) / 2, 42, line1);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line2) * 6) / 2, 53, line2);
+  u8g2.drawStr((SCREEN_WIDTH - strlen(line3) * 6) / 2, 63, line3);
 
   u8g2.sendBuffer();
 }
