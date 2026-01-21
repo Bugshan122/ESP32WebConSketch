@@ -1,18 +1,20 @@
 /*
- * ESP Web Controller
+ * ESP Web Controller (SSD1306 Version)
  *
- * Controls an SH1106 OLED display via Firebase backend.
+ * Controls an SSD1306 OLED display via Firebase backend.
  * Uses WiFiManager for easy WiFi and API key configuration.
  *
  * Hardware:
  *   - ESP32 Dev Module
- *   - SH1106 128x64 OLED (I2C: SDA=21, SCL=22)
+ *   - SSD1306 0.96" 128x64 OLED (I2C 4-pin: SDA=21, SCL=22, VCC, GND)
  *
  * Setup:
  *   1. Upload this sketch
  *   2. Connect to "ESP32-Setup" WiFi network
  *   3. Enter your WiFi credentials and API key from the dashboard
  *   4. Hold BOOT button for 3 seconds to reconfigure anytime
+ *
+ * Branch: ssd1306
  */
 
 #include <WiFi.h>
@@ -28,8 +30,8 @@
 // CONFIGURATION
 // ===========================================
 
-// OLED Display (SH1106 128x64)
-U8G2_SH1106_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
+// OLED Display (SSD1306 0.96" 128x64 I2C)
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
 
 // Firebase Cloud Function URL (replace with your deployed function URL)
 const char* API_BASE_URL = "https://us-central1-esp-web-2625a.cloudfunctions.net/api";
