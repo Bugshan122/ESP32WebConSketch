@@ -37,7 +37,8 @@ const char* API_BASE_URL = "https://us-central1-esp-web-2625a.cloudfunctions.net
 
 // Config button (BOOT button on most ESP32 boards)
 #define CONFIG_PIN 0
-#define EEPROM_SIZE 64
+#define EEPROM_SIZE 512  // Increased to avoid conflicts with WiFiManager
+#define API_KEY_ADDR 100  // Store API key at offset 100 to avoid WiFiManager conflicts
 
 // Display dimensions
 const int SCREEN_WIDTH = 128;
@@ -209,13 +210,15 @@ void setup() {
 
   // Initialize EEPROM and load API key
   EEPROM.begin(EEPROM_SIZE);
-  EEPROM.get(0, apiKey);
+  EEPROM.get(API_KEY_ADDR, apiKey);
 
   // Validate API key format
   if (strncmp(apiKey, "esp_", 4) != 0) {
     memset(apiKey, 0, sizeof(apiKey));
+    Serial.println("No valid API Key found in EEPROM");
+  } else {
+    Serial.println("Loaded API Key: " + String(apiKey));
   }
-  Serial.println("Loaded API Key: " + String(apiKey));
 
   // Initialize OLED
   u8g2.begin();
@@ -284,12 +287,15 @@ void setupWiFiManager() {
 void saveConfigCallback() {
   Serial.println("Config saved!");
 
-  // Save API key to EEPROM
+  // Save API key to EEPROM at dedicated offset
   if (strlen(custom_api_key->getValue()) > 0) {
     strcpy(apiKey, custom_api_key->getValue());
-    EEPROM.put(0, apiKey);
-    EEPROM.commit();
-    Serial.println("API Key saved: " + String(apiKey));
+    EEPROM.put(API_KEY_ADDR, apiKey);
+    if (EEPROM.commit()) {
+      Serial.println("API Key saved successfully: " + String(apiKey));
+    } else {
+      Serial.println("ERROR: Failed to save API Key to EEPROM");
+    }
   }
 }
 
