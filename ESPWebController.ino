@@ -1,5 +1,5 @@
 /*
- * ESP Web Controller
+ * ESP Web Controller (SH1106 Version)
  *
  * Controls an SH1106 OLED display via Firebase backend.
  * Uses WiFiManager for easy WiFi and API key configuration.
@@ -13,6 +13,8 @@
  *   2. Connect to "ESP32-Setup" WiFi network
  *   3. Enter your WiFi credentials and API key from the dashboard
  *   4. Hold BOOT button for 3 seconds to reconfigure anytime
+ *
+ * Branch: sh1106
  */
 
 #include <WiFi.h>
